@@ -61,4 +61,7 @@ def Return_perUser(dataframe, date_today):
 avg_monthly_revenue = Return_perUser(Dataframe_02, '2020-11-21')
 
 
-# Merge datasets
+# Merge datasets with lambda Function
+final = Dataframe_01.merge(avg_monthly_revenue, how='left', on='user_id')
+final.isna().mean()
+    
