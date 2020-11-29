@@ -8,9 +8,9 @@ import os
 # Load the data and create dataframes
 os.chdir(r'C:\Users\Carlosh\github\Master-Thesis')
 Dataframe_01 = pd.read_csv(
-           r'C:\Users\Carlosh\github\Master-Thesis\Dataframe_01.csv')
+           r'C:\Users\Carlosh\github\Master-Thesis\Random_sampling.csv')
 Dataframe_02 = pd.read_csv(
-           r'C:\Users\Carlosh\github\Master-Thesis\Dataframe_02.csv')
+           r'C:\Users\Carlosh\github\Master-Thesis\Payments.csv')
 
 Dataframe_01.head()
 Dataframe_02.head()
@@ -18,6 +18,8 @@ Dataframe_02.head()
 
 # new data frame with split value columns
 
+Dataframe_01["logtime"] = Dataframe_01["logtime"].str.split("T",
+                                                            n=1, expand=True)
 Dataframe_02["logtime"] = Dataframe_02["logtime"].str.split("T",
                                                             n=1, expand=True)
 Dataframe_02["logtime"] = pd.to_datetime(Dataframe_02["logtime"])
@@ -64,4 +66,3 @@ avg_monthly_revenue = Return_perUser(Dataframe_02, '2020-11-21')
 # Merge datasets with lambda Function
 final = Dataframe_01.merge(avg_monthly_revenue, how='left', on='user_id')
 final.isna().mean()
-    
