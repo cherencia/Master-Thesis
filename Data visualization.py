@@ -3,27 +3,22 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
 import os
-
+import datetime
 
 # Load the data and create dataframes
-os.chdir(r'C:\Users\Carlosh\github\Master-Thesis')
-Dataframe_01 = pd.read_csv(
-           r'C:\Users\Carlosh\github\Master-Thesis\Dataframe_01.csv')
-Dataframe_02 = pd.read_csv(
-           r'C:\Users\Carlosh\github\Master-Thesis\Dataframe_02.csv')
+os.chdir(r'C:\Users\A112554429\Downloads\GitHub')
 
-Dataframe_01.head()
-Dataframe_02.head()
+Dataframe = pd.read_csv(
+          r'C:\Users\A112554429\Downloads\GitHub\Final_dataframe.csv')
+Dataframe.head()
+Dataframe["logtime"] = pd.to_datetime(Dataframe["logtime"])
+Dataframe.groupby('nc')['attr_price_num'].mean()
+# Drop e_commerce purchase values (they are repeated)
 
 
-# new data frame with split value columns
+df = Dataframe[Dataframe['event_action']=='Payment Completed']
+df = df.loc[Dataframe['attr_label_str'] != 'loyalty']
 
-Dataframe_02["logtime"] = Dataframe_02["logtime"].str.split("T",
-                                                            n=1, expand=True)
-Dataframe_02["logtime"] = pd.to_datetime(Dataframe_02["logtime"])
-Dataframe_02 = Dataframe_02.dropna(subset=['attr_price_num', 'logtime'])
-
-Dataframe_02.groupby('user_id')['attr_price_num'].mean()
 
 # Define function to get months between two dates
 
@@ -31,7 +26,10 @@ Dataframe_02.groupby('user_id')['attr_price_num'].mean()
 def GetMonths(t0, date_today):
     delta = date_today - t0
     months = int(delta.days/30)
-    return months
+    if months != 0:
+        return months
+    else:
+        return 1
 
 
 # Create function that eludes dividing by zero
@@ -49,7 +47,7 @@ def Return_perUser(dataframe, date_today):
         revenue_of_user = subsection['attr_price_num']
         oldest_date = min(subsection['logtime'])
         months = GetMonths(oldest_date, date_today)
-        total_revenue = revenue_of_user.sum(axis=0)
+        total_revenue = revenue_of_user.sum()
         avg_monthly_revenue = Division(total_revenue, months)
         average_revenue.append(avg_monthly_revenue)
     dataframe_converted = unique_users.to_frame(name='user_id')
@@ -58,10 +56,28 @@ def Return_perUser(dataframe, date_today):
 
 
 # Now we have a dataframe with the monthly return on average
-avg_monthly_revenue = Return_perUser(Dataframe_02, '2020-11-21')
+avg_monthly_revenue = Return_perUser(df, '2020-11-21 20:29:14.169000+00:00')
+avg_monthly_revenue_merged = avg_monthly_revenue.merge(df[['user_id',
+                                                                  'nc', 
+                                                                  'devicebrand',
+                                                                  'attr_os_str']], 
+                                                on='user_id',how= 'inner')
+avg_monthly_revenue_unique = avg_monthly_revenue_merged.drop_duplicates(keep=
+                                                                        'first', 
+                                                                        subset=
+                                                                        'user_id')
+avg_monthly_revenue_unique.isna().mean()
+
+# Merge both dataframes
+Dataframe_final = df.merge(avg_monthly_revenue, on='user_id')
 
 
-# Merge datasets with lambda Function
-final = Dataframe_01.merge(avg_monthly_revenue, how='left', on='user_id')
-final.isna().mean()
-    
+
+#Plots
+ios_or_android = avg_monthly_revenue_unique.groupby(
+    'attr_os_str')['attr_os_str'].count()
+ios_or_android.plot.bar()
+natco = avg_monthly_revenue_unique.groupby('nc')['nc'].count()
+natco.plot.bar()
+ARPU = avg_monthly_revenue_unique.groupby('nc')['avg_revenue'].mean()
+ARPU.plot.bar()
