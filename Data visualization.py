@@ -10,19 +10,20 @@ First copy the file Final_dataframe_customers_2020_12_05.csv on the local
 repository file
 '''
 # Load the data and create dataframes
-
-
-Dataframe = pd.read_csv(r'Final_dataframe_customers_2020_12_05.csv')
+Dataframe = pd.read_csv(r'New_Query_2020_12_07.csv')
 Dataframe.head()
+
+# Convert logtime to date format
 Dataframe["logtime"] = pd.to_datetime(Dataframe["logtime"])
+
+Dataframe.isna().mean()
 Dataframe.groupby('nc')['attr_price_num'].mean()
-# Drop e_commerce purchase values (they are repeated)
-
-
-df = Dataframe[Dataframe['event_action'] == 'Payment Completed']
+df = Dataframe.dropna(subset=['user_id'])
 df = df.loc[Dataframe['attr_label_str'] != 'loyalty']
-df.isna().mean()
 df = df.dropna(subset=['user_id'])
+df.isna().mean()
+df.groupby('nc')['attr_price_num'].mean()
+mk = df.loc[Dataframe['nc'] == 'me']
 # Define function to get months between two dates
 
 
