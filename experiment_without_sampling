@@ -1,21 +1,21 @@
 -- Main table, containing every payment and descriptive data
  WITH payment_info AS
-  (SELECT user_id,
-          attr_instrument_str,
-          attr_price_num,
-          attr_category_str,
-          attr_label_str,
-          ATTR_method_STR,
-          appVersion,
-          connectionType,
-          deviceModel,
-          logtime,
-          event_action,
-          attr_os_str,
-          devicebrand,
-          nc
+  (SELECT user_id, date, attr_instrument_str,
+                         attr_price_num,
+                         attr_category_str,
+                         attr_label_str,
+                         ATTR_method_STR,
+                         appVersion,
+                         connectionType,
+                         deviceModel,
+                         logtime,
+                         event_action,
+                         attr_os_str,
+                         devicebrand,
+                         nc
    FROM oneapp_data.oa_events
    WHERE event_action = 'Payment Completed'
+     AND date NOT IN (date'2020-05-26')
      AND user_id IN
        (SELECT user_id
         FROM oneapp_data.oa_events tablesample bernoulli (0.03)
@@ -25,12 +25,12 @@
           AND event_action IN ('Count of Mobile Services',
                                'Count of Fixed TV Services',
                                'Count of Fixed Internet Services',
-                               'Count of Fixed Voice Services'))
+                               'Count of Fixed Voice Services')
+        LIMIT 10000)
      AND user_id <> ''
      AND lower(environment) IN ('live',
                                 'release')
-     AND user_id IS NOT NULL
-   LIMIT 500000 ), -- Last log for counting services
+     AND user_id IS NOT NULL ), -- Last log for counting services
  last_log AS
   (SELECT user_id,
           max(logtime) AS logtime_lastLog
@@ -40,8 +40,9 @@
                     'Count of Fixed TV Services',
                     'Count of Fixed Internet Services',
                     'Count of Fixed Voice Services')
-     AND user_id IS NOT NULL
-     AND user_id <> ''
+     AND user_id IN
+       (SELECT user_id
+        FROM payment_info)
      AND lower(environment) IN ('live',
                                 'release')
      AND extract(MONTH
