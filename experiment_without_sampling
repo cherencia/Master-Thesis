@@ -1,6 +1,6 @@
 -- Main table, containing every payment and descriptive data
  WITH payment_info AS
-  (SELECT user_id, date, attr_instrument_str,
+  (SELECT user_id, attr_instrument_str,
                          attr_price_num,
                          attr_category_str,
                          attr_label_str,
