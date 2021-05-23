@@ -2,275 +2,318 @@
 import numpy as np
 import math as mth
 from numpy.core.defchararray import index
+from numpy.core.fromnumeric import shape
+from numpy.core.records import record
 from numpy.lib.function_base import append
 
 
-class Auctioneer:# Class that draw the different offers and record the results
+class Auctioneer:# Class that draw the different offers 
     
-    def __init__(self, k, N, alpha, beta):
+    def __init__(self, k, T, J, M, tau, alpha, beta):
         
         self.k = k
-        self.N = N
+        self.N = T
+        self.t = 0
+        self.J = J
+        self.tau = tau
         self.alpha = alpha
         self.beta = beta
+        self.M = M
         self.values = []
-        self.offers = []
-        self.sigmas = []
-        self.BayesianProbabilites = []
-        self.impressions_first = 0
-        self.bayes_arm_selected1 = []
-        self.bayes_arm_selected2 = []
+        self.CTR_naive = np.zeros(shape=self.k)
+        self.CTR_shrink = np.zeros(shape=self.k)
+        self.CTR_bayes = np.zeros(shape=self.k)
+        self.sigmas = np.zeros(shape=self.k)
         self.alphas = []
         self.betas = []
-        self.succeses_first_ad = 0
-        
+        self.successes_naive = np.zeros(shape=self.k)
+        self.successes_shrink = np.zeros(shape=self.k)
+        self.successes_bayes = np.zeros(shape=self.k)
+        self.failures_naive = np.zeros(shape=self.k)
+        self.failures_shrink = np.zeros(shape=self.k)
+        self.failures_bayes = np.zeros(shape=self.k)
+        self.regretNaive = 0
+        self.regretShrink = 0
+        self.regretBayes = 0
+        self.w1 = np.zeros(shape=self.k)
+        self.w2 = np.zeros(shape=self.k)
+        self.w3 = np.zeros(shape=self.k)
     
     def draw_values(self): # Draw the theta values from a beta distribution
         for i in range(self.k):
             self.values.append(np.random.beta(self.alpha, self.beta))
+        for i in range(self.k):
+            self.alphas.append(self.alpha)
+            self.betas.append(self.beta)
+        self.values.sort(reverse=True)
+    
+    def SimulateClicksNaive(self): # display ads according to the schedule w
+        successes_period = 0
+        loss = 0
+        for k in range(self.k):
+            successes = np.sum(np.random.binomial(1, self.values[k], int(self.M*self.w1[k])))
+            # successes_period += successes
+            self.successes_naive[k] = self.successes_naive[k] + successes
+            self.alphas[k] = self.alphas[k] + successes
+            failures = int(self.M*self.w1[k])-successes
+            self.failures_naive[k] = self.failures_naive[k] + failures
+            self.betas[k] = self.betas[k] + failures
+            self.CTR_naive[k] = self.successes_naive[k]/(self.failures_naive[k]+ self.successes_naive[k])
+            sigma = mth.sqrt((self.CTR_naive[k]*(1-self.CTR_naive[k])/(self.failures_naive[k]+ self.successes_naive[k])))
+            self.sigmas[k] = sigma
+        for k in range(self.k):
+            loss += self.w1[k]*self.M*self.values[k]
 
+        regret = self.M * max(self.values) - loss
+        self.regretNaive = self.regretNaive + regret
+    
+    def SimulateClicksShrink(self): # display ads according to the schedule w
+        # successes_period = 0
+        loss = 0
+        for k in range(self.k):
+            successes = np.sum(np.random.binomial(1, self.values[k], int(self.M*self.w2[k])))
+            # successes_period += successes
+            self.successes_shrink[k] = self.successes_shrink[k] + successes
+            self.alphas[k] = self.alphas[k] + successes
+            failures = int(self.M*self.w2[k])-successes
+            self.failures_shrink[k] = self.failures_shrink[k] + failures
+            self.betas[k] = self.betas[k] + failures
+            self.CTR_shrink[k] = self.successes_shrink[k]/(self.failures_shrink[k]+ self.successes_shrink[k])
+            sigma = mth.sqrt((self.CTR_shrink[k]*(1-self.CTR_shrink[k])/(self.failures_shrink[k]+ self.successes_shrink[k])))
+            self.sigmas[k] = sigma
+        for k in range(self.k):
+            loss += self.w2[k]*self.M*self.values[k]
 
-    def draw_first_offer(self):# Draw the first offer from a Binomial distribution    
+        regret = self.M * max(self.values) - loss
+        self.regretShrink = self.regretNaive + regret
+    
+    def SimulateClicksBayes(self): # display ads according to the schedule w
+        # successes_period = 0
+        loss = 0
+        for k in range(self.k):
+            successes = np.sum(np.random.binomial(1, self.values[k], int(self.M*self.w3[k])))
+            # successes_period += successes
+            self.successes_bayes[k] = self.successes_bayes[k] + successes
+            self.alphas[k] = self.alphas[k] + successes
+            failures = int(self.M*self.w3[k])-successes
+            self.failures_bayes[k] = self.failures_bayes[k] + failures
+            self.betas[k] = self.betas[k] + failures
+            self.CTR_bayes[k] = self.successes_bayes[k]/(self.failures_bayes[k]+ self.successes_bayes[k])
+            sigma = mth.sqrt((self.CTR_bayes[k]*(1-self.CTR_bayes[k])/(self.failures_bayes[k]+ self.successes_bayes[k])))
+            self.sigmas[k] = sigma
+        for k in range(self.k):
+            loss += self.w3[k]*self.M*self.values[k]
+
+        regret = self.M * max(self.values) - loss
+        self.regretBayes = self.regretNaive + regret
+    
+    def NaiveSelection(self,): # generate a schedule according to naive sel
         
-        n = int(np.random.uniform(1000, 1000000))
-        successes = sum(np.random.binomial(1, self.values[0], n))
-        p_1 = successes/n
-        self.succeses_first_ad = successes
-        self.offers.append(p_1)
-        sigma = mth.sqrt((p_1*(1-p_1)/n))
-        self.sigmas.append(sigma)
-        self.impressions_first = n
-    
-    
-    def draw_other_offers(self):
+        if self.t < self.tau:
+            self.w1 = np.zeros(shape=self.k)
+            for k in range(self.k):
+                self.w1[k] = 1/self.k
+        elif self.t == self.tau:
+            self.w1 = np.zeros(shape=self.k)
+            winner = np.argmax(self.CTR_naive)
+            self.w1[winner] = 1
+        else: 
+            pass
 
-        p_k = []
-        # we skip the first value
-        for i in range(1, len(self.values)) :
-            n = int(self.N/(self.k-1))
-            p_k = sum(np.random.binomial(1, self.values[i], n))/ n 
-            self.offers.append(p_k)
-            sigma = mth.sqrt((p_k*(1-p_k)/n))
-            self.sigmas.append(sigma)
-    
-    def ShrinkageSelection(self, c):
 
+    def ShrinkageSelection(self, c):# generate a schedule accordint to shirnk sel
+
+        
         p_hat =[]
-        for i in range(len(self.offers)):
-            shrinked_offer = self.offers[i]-c*self.sigmas[i]
+        for i in range(self.k):
+            shrinked_offer = self.CTR_shrink[i]-c*self.sigmas[i]
             p_hat.append(shrinked_offer)
         winner = p_hat.index(max(p_hat))
-        return winner
-    
+        if self.t < self.tau:
+            self.w2 = np.zeros(shape=self.k)
+            for k in range(self.k):
+                self.w2[k] = 1/self.k
+        elif self.t == self.tau:
+            self.w2 = np.zeros(shape=self.k)
+            self.w2[winner] = 1
+        else: 
+            pass
+        
+    # our modified version of the bandits
     def BayesianBandits(self):
 
-        alpha = []
-        beta =[]
-        ad_t = []
-        y_t = []
-        p_hat = []
-        for i in range(self.k):
-            alpha.append(self.alpha)
-            beta.append(self.beta)
-        thetas_hat = np.zeros(self.k)
-        for j in range(self.N):
+        I = np.zeros(shape=(self.k, self.J))
+        self.w3 = np.zeros(shape=self.k)
+        for j in range(self.J):
+            thetas = []
             for k in range(self.k):
-                thetas_hat[k] = np.random.beta(alpha[k], beta[k])
-            prob_selected = np.amax(thetas_hat)
-            self.BayesianProbabilites.append(prob_selected)
-            ad_selected = np.argmax(thetas_hat)
-            self.bayes_arm_selected1.append(ad_selected)
-            ad_t.append(ad_selected)
-            y_t.append(np.random.binomial(1, self.values[ad_selected], 1))
-            alpha[ad_selected] = alpha[ad_selected] + y_t[j]
-            self.alphas.append(alpha[ad_selected])
-            beta[ad_selected] = beta[ad_selected] + 1 -y_t[j]
-            self.betas.append([beta[ad_selected]])
-        for ad in range(self.k):
-            probability = alpha[ad]/(alpha[ad] + beta[ad])
-            p_hat.append(probability)
-        winner = p_hat.index(max(p_hat))
-        return winner
-    '''
-    function that update the parameters of the prior for the first ad 
-    according to the observed sequence of succeses and failures during the
-    first ad
-    '''
-    def UpdateFirstPrior(self, alphas, betas):
-        alphas[0] = self.alpha + self.succeses_first_ad
-        betas[0] = self.beta + self.impressions_first - self.succeses_first_ad
-        return alphas, betas
+                thetas.append(np.random.beta(self.alphas[k], self.betas[k]))
+            winner = thetas.index(max(thetas))
+            I[winner, j] = 1
+            
+        self.w3 = I.sum(axis=1)/self.J
     
-
-    # our modified version of the bandits
-    def BayesianBandits2(self):
-
-        alpha_k = np.zeros(self.k)
-        beta_k = np.zeros(self.k)
-        ad_t = []
-        y_t = []
-        p_hat = []
-        alpha_k, beta_k = self.UpdateFirstPrior(alpha_k, beta_k)
-        for i in range(1, self.k):
-            alpha_k[i] = self.alpha
-            beta_k[i] = self.beta
-        thetas_hat = np.zeros(self.k)
-        for j in range(self.N):
-            for k in range(self.k):
-                thetas_hat[k] = np.random.beta(alpha_k[k], beta_k[k])
-            self.BayesianProbabilites.append(thetas_hat)
-            ad_selected = np.argmax(thetas_hat)
-            self.bayes_arm_selected2.append(ad_selected)
-            ad_t.append(ad_selected)
-            y_t.append(np.random.binomial(n=1, p = self.values[ad_selected], size=1))
-            alpha_k[ad_selected] = alpha_k[ad_selected] + y_t[j]
-            #self.alphas.append(alpha_k[ad_selected])
-            beta_k[ad_selected] = beta_k[ad_selected] + 1 -y_t[j]
-            #self.betas.append([beta_k[ad_selected]])
-        for ad in range(self.k):
-            probability = alpha_k[ad]/(alpha_k[ad] + beta_k[ad])
-            p_hat.append(probability)
-        winner = p_hat.index(max(p_hat))
-        self.alphas.append(alpha_k[winner])
-        self.betas.append(beta_k[winner])
-        return winner
-
-    def RecordResults(self, winner):
-        offer_values = self.values
-        true_winner = offer_values.index(max(offer_values))
-        if winner == true_winner:
-            result = 1
-        else:
-            result = 0
-
-        return result 
+    def NextPeriod(self):
+        self.t += 1
     
-    def CalculateRegretShrink(self):#Calculate the total regret of each auction
-
-        regret_t = []
-        j = 1
-        for n in range(1, self.k):
-            l_t = (self.k-1)*(max(self.values)-self.values[j])
-            regret_t.append(l_t)
-            j += 1
-        return sum(regret_t)
-    
-    def CalculateRegretBayes(self):
-        regret_t = []
-        for n in range(self.N):
-            l_t = max(self.values)-self.values[self.bayes_arm_selected1[n]]
-            regret_t.append(l_t)
-        return sum(regret_t)
-    
-    def CalculateRegretBayes2(self):
-        regret_t = []
-        for n in range(self.N):
-            l_t = max(self.values)-self.values[self.bayes_arm_selected2[n]]
-            regret_t.append(l_t)
-        return sum(regret_t)
-
- 
-
 # unit test
 # intitialize the auction
-test = Auctioneer(3, 100, 0.9809628968249227, 5.318600742609512)
+test = Auctioneer(3, 10, 100, 10, 3, 0.98, 5.3186)
 test.draw_values()
-test.draw_first_offer()
-test.draw_other_offers()
+test.BayesianBandits()
+test.NaiveSelection()
+test.ShrinkageSelection(0.5)
+test.SimulateClicksBayes()
+test.SimulateClicksNaive()
+test.NextPeriod()
 # check values and offers
 test.values
-test.offers
-# check selection methods
-test.offers.index(max(test.offers))
-test.ShrinkageSelection(0.5)
-test.BayesianBandits()
-test.BayesianBandits2()
-# check parameters auction
-test.succeses_first_ad
-test.alpha
-test.impressions_first
-test.succeses_first_ad/test.impressions_first
-# check regrets
-test.CalculateRegretShrink()
-test.CalculateRegretBayes()
-test.CalculateRegretBayes2()
 
+# function that simulates many auctions and records the results
 
-
-# Function that returns a matrix with the results for each policy
-def SimulationComparison(k, N, alpha, beta, draws):
+# Function that returns a matrix with the selectivity for each policy
+def SimulationComparison(k, T, J, M, tau, alpha, beta, draws):
     
     c_values = np.linspace(0,1.5,12)
     # result matrix
-    result_matrix = np.zeros(shape=(len(c_values),5))
-    regret_matrix = np.zeros(shape=(draws, 3))
-    naive_result = []
-    shrink_result = np.zeros(shape=(len(c_values), draws))
-    bandit_result = []
-    bandit_result2 = []
-    # we perform 10000 simulated auctions
-    for i in range(draws):
+    selectivity_matrix_naive = np.zeros(shape=(draws))
+    selectivity_matrix_shrink = np.zeros(shape=(draws,len(c_values)))
+    for i in range(draws):# we perform 1000 simulated scenarios for each c
         print(i)
-        auction = Auctioneer(k, N, alpha, beta)
-        auction.draw_values()
-        auction.draw_first_offer()
-        auction.draw_other_offers()
-        naive_winner = auction.offers.index(max(auction.offers))
-        # record result for the naive policy
-        naive_result.append(auction.RecordResults(naive_winner))
-        # record the result for each value of c
-        j = 0
-        for c in c_values:
-            shrink_winner = auction.ShrinkageSelection(c)
-            shrink_result[j, i] = auction.RecordResults(shrink_winner)
-            j += 1
-        bandit_winner = auction.BayesianBandits()
-        # record result for the bandits policy
-        bandit_result.append(auction.RecordResults(bandit_winner))
-        # modified bandit
-        bandit_winner2 = auction.BayesianBandits2()
-        # record result for the bandits policy
-        bandit_result2.append(auction.RecordResults(bandit_winner2))
-        # record regrets
-        regret_matrix[i, 0] = auction.CalculateRegretShrink()
-        regret_matrix[i, 1] = auction.CalculateRegretBayes()
-        regret_matrix[i, 2] = auction.CalculateRegretBayes2()
-    means_naive = sum(naive_result)/draws
-    #print(shrink_result)
-    means_shrink = shrink_result.mean(axis=1)
-    means_bandit = sum(bandit_result)/draws
-    means_bandit2 = sum(bandit_result2)/draws
-    for row in range(len(c_values)):
-        result_matrix[row, 0] = c_values[row]
-    for row in range(len(c_values)):
-        result_matrix[row, 1] = means_naive
-    for row in range(len(c_values)):
-        result_matrix[row, 2] = means_shrink[row]
-    for row in range(len(c_values)):
-        result_matrix[row, 3] = means_bandit
-    for row in range(len(c_values)):
-        result_matrix[row, 4] = means_bandit2
+        for c in range(len(c_values)):
+            auction = Auctioneer(k, T, J, M, tau, alpha, beta)
+            auction.draw_values()
+            for period in range(T):
+                auction.BayesianBandits()
+                auction.NaiveSelection()
+                auction.ShrinkageSelection(c)
+                auction.SimulateClicksBayes()
+                auction.SimulateClicksNaive()
+                auction.SimulateClicksShrink()
+                auction.NextPeriod()
+            if np.argmax(auction.w1) == 0:
+                selectivity_matrix_naive[i] = 1
+            else:
+                selectivity_matrix_naive[i] = 0
+            if np.argmax(auction.w2) == 0:
+                selectivity_matrix_shrink[i, c] = 1
+            else:
+                selectivity_matrix_shrink[i, c] = 0
+    return selectivity_matrix_naive, selectivity_matrix_shrink
 
-            
-    return result_matrix, regret_matrix
-        
-# unit test for this function
-result_test, regret_test = SimulationComparison(8, 100, 1, 1, 1000)
-np.mean(regret_test[0])
-np.mean(regret_test[1])
-np.mean(regret_test[2])
-def RunExperiments(alpha, beta, draws):
+wasabi1, wasabi2 = SimulationComparison(3, 4, 100, 4, 3, 0.98, 5.3186, 10)
+
+def RunExperimentsSelectivity(T, J, tau, alpha, beta, draws):
 
     # running auctions with different parameters
     # and saving them to different .csv files
-    for N in (100,1000):
+    for M in (100,1000):
         for k in range(3,9):
-            data1, data2 = SimulationComparison(k, N, alpha, beta, draws)
-            np.savetxt('results_' + str(N) + '_' + str(k), data1, delimiter=',')
-            np.savetxt('regrets_' + str(N) + '_' + str(k), data2, delimiter=',')
+            data1, data2 = SimulationComparison(k, T, J, M, tau, alpha, beta, draws)
+            np.savetxt('results_naive_' + str(M) + '_' + str(k), data1, delimiter=',')
+            np.savetxt('results_shrink' + str(M) + '_' + str(k), data2, delimiter=',')
+
+            
+
+test1 = RunExperimentsSelectivity(4, 100, 3, 0.98, 5.3186, 10000)
 
 
 
-test = RunExperiments(1, 1, 10000)
+# regrets for the shrink selection
+def shrinkRegrets(k, T, J, M, tau, alpha, beta, draws):
+    # result matrix
+    c_values = np.linspace(0,1.5,12)
+    regret_matrix = np.zeros(shape=(draws, len(c_values)))
+    for i in range(draws):# we perform 1000 simulated scenarios for each c
+        print(i)
+        for c in range(len(c_values)):
+            auction = Auctioneer(k, T, J, M, tau, alpha, beta)
+            auction.draw_values()
+            for period in range(T):
+                auction.ShrinkageSelection(c)
+                auction.SimulateClicksShrink()
+                auction.NextPeriod()
+            regret_matrix[i, c] = auction.regretShrink
+    return regret_matrix
+
+# unit test for shrink
+test_shrink = shrinkRegrets(16, 10, 1000, 1000, 1, 1, 5, 100)
+
+def RunExperimentsShrinkRegrets(T, J, tau, alpha, beta, draws):
+
+    # running auctions with different parameters
+    # and saving them to different .csv files
+    for M in (100,1000):
+        for k in range(3,9):
+            data1 = shrinkRegrets(k, T, J, M, tau, alpha, beta, draws)
+            np.savetxt('results_regret_shrink' + str(M) + '_' + str(k), data1, delimiter=',')
+
+shrink_regrets = RunExperimentsShrinkRegrets(10, 1000, 1, 0.98, 5.3, 1000)
+
+# function that compare regrets
+def compareRegrets(k, T, J, M, tau, alpha, beta, draws):
+    # result matrix
+    regret_matrix = np.zeros(shape=(draws, 2))
+    
+    for i in range(draws):# we perform 1000 simulated scenarios for each c
+        print(i)
+        auction = Auctioneer(k, T, J, M, tau, alpha, beta)
+        auction.draw_values()
+        for period in range(T):
+            auction.BayesianBandits()
+            auction.NaiveSelection()
+            auction.SimulateClicksBayes()
+            auction.SimulateClicksNaive()
+            auction.NextPeriod()
+        regret_matrix[i, 0] = auction.regretNaive
+        regret_matrix[i, 1] = auction.regretBayes
+    
+    return regret_matrix
+
+test2 = compareRegrets(3, 50, 1000, 100, 1, 1, 1, 10)
+
+def RunExperimentsRegret(T, J, tau, alpha, beta, draws):
+
+    # running auctions with different parameters
+    # and saving them to different .csv files
+    for M in (100,1000):
+        for k in range(3,9):
+            data = compareRegrets(k, T, J, M, tau, alpha, beta, draws)
+            np.savetxt('results_regrets_' + str(M) + '_' + str(k), data, delimiter=',')
+
+experiments_regret = RunExperimentsRegret(10, 1000, 1, 0.98, 5.3, 1000)
+
+# function that records the wieghts from the bayesian bandits
+
+def recordWeights(k, T, J, M, tau, alpha, beta, draws):
+    # we are going to create a list of list of weight arraws
+    list_of_matrixes = []
+    for i in range(draws):# we perform 1000 
+        print(i)
+        matrix_weights =np.zeros(shape=(T, k))
+        auction = Auctioneer(k, T, J, M, tau, alpha, beta)
+        auction.draw_values()
+        for period in range(T):
+            auction.BayesianBandits()
+            auction.SimulateClicksBayes()
+            matrix_weights[auction.t] = auction.w3 
+            auction.NextPeriod()
+        list_of_matrixes.append(matrix_weights)
+        
+    
+    return list_of_matrixes
+
+matrixes_w_bayes = recordWeights(3, 10, 1000, 100, 3, 0.98, 5.3, 1000)
+
+def calculateMeanWeights(list_of_matrix, T, k, draws):
+    final_array = np.zeros(shape=(T, k))
+    for matrix in list_of_matrix:
+        for row in  range(matrix.shape[0]):
+            final_array[row] += matrix[row]
+    return final_array/draws
+
+
+final_matrix_w_bayes = calculateMeanWeights(matrixes_w_bayes, 10, 3, 1000)
+np.savetxt('final_matrix_bayes' ,final_matrix_w_bayes, delimiter=',')
 
 
